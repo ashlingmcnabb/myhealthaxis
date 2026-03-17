@@ -769,7 +769,7 @@
                 <option>Dr.</option><option>Prof.</option><option>Mr.</option><option>Ms.</option><option>Mrs.</option>
               </select>
             </div>
-            <div class="form-group"><label class="form-label">Email Address *</label><input class="input" type="email" id="reg-email" placeholder="you@example.com" required></div>
+            <div class="form-group"><label class="form-label">Email Address *</label><input class="input" type="email" id="reg-email" placeholder="your.email.address" required></div>
             <div class="form-group"><label class="form-label">Phone Number *</label><input class="input" type="tel" id="reg-phone" placeholder="+353 1 234 5678"></div>
             <div class="form-group"><label class="form-label">Password *</label><input class="input" type="password" id="reg-password" placeholder="Minimum 8 characters"></div>
             <div class="form-group"><label class="form-label">Confirm Password *</label><input class="input" type="password" id="reg-password2" placeholder="Re-enter password"></div>
@@ -984,7 +984,7 @@
         <input class="input" id="booking-name" placeholder="Full name">
       </div>
       <div class="form-row" style="margin-bottom:20px">
-        <div class="form-group"><label class="form-label">Email</label><input class="input" type="email" id="booking-email" placeholder="you@example.com"></div>
+        <div class="form-group"><label class="form-label">Email</label><input class="input" type="email" id="booking-email" placeholder="your.email.address"></div>
         <div class="form-group"><label class="form-label">Phone</label><input class="input" type="tel" id="booking-phone" placeholder="+353…"></div>
       </div>
       <div style="margin-bottom:16px">
@@ -1810,7 +1810,7 @@ function searchToClaim() {
 
 function submitClaimRequest(doctorId) {
   const d = doctors.find(x => x.id === doctorId);
-  claimRequests.push({ id: Date.now(), doctorId, doctorName: `${d.title} ${d.firstName} ${d.lastName}`, requestDate: new Date().toISOString(), status: 'pending', requesterEmail: 'requester@email.com' });
+  claimRequests.push({ id: Date.now(), doctorId, doctorName: `${d.title} ${d.firstName} ${d.lastName}`, requestDate: new Date().toISOString(), status: 'pending', requesterEmail: '' });
   showToast('✅ Claim request submitted! Our team will review within 24 hours.', 'success');
   document.getElementById('claim-results').innerHTML = `
     <div class="card" style="background:var(--primary-light);border-color:var(--accent)">
@@ -2137,7 +2137,7 @@ function renderAdminSettings() {
         <h3 style="font-weight:600;margin-bottom:16px">Site Configuration</h3>
         <div style="display:flex;flex-direction:column;gap:14px">
           <div class="form-group"><label class="form-label">Platform Name</label><input class="input" value="MyHealthAxis"></div>
-          <div class="form-group"><label class="form-label">Support Email</label><input class="input" value="support@yourdomain.ie"></div>
+          <div class="form-group"><label class="form-label">Support Email</label><input class="input" value="support [at] yourdomain.ie"></div>
           <div class="form-group"><label class="form-label">Default Language</label>
             <select class="select"><option>English</option><option>Irish</option></select>
           </div>
@@ -2160,7 +2160,7 @@ function renderAdminSettings() {
       <div class="card">
         <h3 style="font-weight:600;margin-bottom:16px">Admin Account</h3>
         <div style="display:flex;flex-direction:column;gap:14px">
-          <div class="form-group"><label class="form-label">Admin Email</label><input class="input" value="admin@yourdomain.ie"></div>
+          <div class="form-group"><label class="form-label">Admin Email</label><input class="input" value="admin [at] yourdomain.ie"></div>
           <div class="form-group"><label class="form-label">New Password</label><input class="input" type="password" placeholder="Leave blank to keep current"></div>
         </div>
         <button class="btn btn-primary" style="margin-top:16px" onclick="showToast('Account updated!','success')">Update Account</button>
