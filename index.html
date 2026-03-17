@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MyHealthAxis – Find Healthcare Professionals in Ireland</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -739,6 +740,22 @@
           <button class="btn btn-primary" onclick="searchToClaim()">Search</button>
         </div>
         <div id="claim-results"></div>
+        <div id="claim-contact-fields" class="hidden" style="margin-top:20px;display:flex;flex-direction:column;gap:14px">
+        <div class="form-group">
+        <label class="form-label">Your Full Name *</label>
+        <input class="input" id="claim-requester-name" placeholder="e.g. Dr. Sarah Murphy">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Your Email Address *</label>
+          <input class="input" type="email" id="claim-requester-email" placeholder="you@example.com">
+        </div>
+        <div class="form-group">
+        <label class="form-label">Supporting Information (optional)</label>
+    <textarea class="textarea" id="claim-evidence" placeholder="e.g. My IMC registration number is IMC-12345" style="min-height:70px"></textarea>
+  </div>
+</div>
+
+        
         <button class="btn btn-ghost btn-sm" onclick="showRegisterModeSelect()" style="margin-top:16px">← Back</button>
       </div>
 
@@ -1048,6 +1065,38 @@
 
 <!-- ═══════════════════════════════ JAVASCRIPT ═══════════════════════════════ -->
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+
+// ─── SUPABASE CLIENT ──────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://yllgcfwzwjitdjmcgzjh.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlsbGdjZnd6d2ppdGRqbWNnempoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2OTgxNDEsImV4cCI6MjA4OTI3NDE0MX0.ZbEUsqImQnT94mS0uk-W1ZV63gvkOBMd0Zz3193Plwo';
+
+const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Helper: call an Edge Function with region pinned to eu-west-1 Dublin
+async function callFunction(name, options = {}) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'x-region': 'eu-west-1',
+    ...(options.headers || {}),
+  };
+
+  // Attach the auth token if the user is logged in
+  if (window._authToken) {
+    headers['Authorization'] = 'Bearer ' + window._authToken;
+  }
+
+  const invokeOptions = { ...options, headers };
+
+  // Convert body object to JSON string if needed
+  if (invokeOptions.body && typeof invokeOptions.body === 'object') {
+    invokeOptions.body = JSON.stringify(invokeOptions.body);
+  }
+
+  const { data, error } = await supabase.functions.invoke(name, invokeOptions);
+  if (error) throw error;
+  return data;
+}
+  
 // ─── STATE ───────────────────────────────────────────────────────────────────
 let currentRating = 0;
 let currentDoctorId = null;
@@ -1288,37 +1337,26 @@ function initSearchPage() {
   setTimeout(initMap, 200);
 }
 
-function filterResults() {
-  const q = (document.getElementById('search-q')?.value || '').toLowerCase();
-  const loc = (document.getElementById('search-loc')?.value || '').toLowerCase();
-  const spec = document.getElementById('search-specialty')?.value || '';
+async function filterResults() {
+  const q   = document.getElementById('search-q')?.value || '';
+  const loc = document.getElementById('search-loc')?.value || '';
+  const sp  = document.getElementById('search-specialty')?.value || '';
 
-  const filtered = doctors.filter(d => {
-    if (d.status !== 'approved') return false;
-    const name = `${d.firstName} ${d.lastName}`.toLowerCase();
-    const matchQ = !q || name.includes(q) || d.specialty.toLowerCase().includes(q) ||
-      (d.subspecialties||'').toLowerCase().includes(q) || d.bio.toLowerCase().includes(q);
-    const matchLoc = !loc || d.city.toLowerCase().includes(loc) || d.county.toLowerCase().includes(loc);
-    const matchSpec = !spec || d.specialty === spec;
-    return matchQ && matchLoc && matchSpec;
-  });
+  document.getElementById('results-container').innerHTML = 
 
-  const container = document.getElementById('results-container');
-  const count = document.getElementById('results-count');
-  count.textContent = `${filtered.length} professional${filtered.length !== 1 ? 's' : ''} found`;
-
-  if (filtered.length === 0) {
-    container.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-muted)">
-      <div style="font-size:40px;margin-bottom:12px">🔍</div>
-      <div style="font-size:16px;font-weight:500;margin-bottom:8px">No results found</div>
-      <div style="font-size:14px">Try adjusting your search criteria</div>
-    </div>`;
-  } else {
-    container.innerHTML = filtered.map(d => renderDoctorCard(d)).join('');
+  try {
+    const results = await callFunction('search-professionals', {
+      method: 'GET',
+      headers: { 'Content-Type': 
+      query: { q, city: loc, specialty: sp }
+    });
+    renderResults(results || []);
+    updateMapMarkers(results || []);
+  } catch (err) {
+    document.getElementById('results-container').innerHTML = 
   }
-
-  updateMapMarkers(filtered);
 }
+
 
 function renderDoctorCard(d) {
   const initials = d.firstName[0] + d.lastName[0];
@@ -1442,13 +1480,21 @@ function updateMapMarkers(docs) {
 }
 
 // ─── DOCTOR PROFILE ───────────────────────────────────────────────────────────
-function showDoctorProfile(id) {
+async function showDoctorProfile(id) {
   currentDoctorId = id;
-  const d = doctors.find(x => x.id === id);
-  if (!d) return;
   showPage('profile-page');
-  renderProfile(d);
+  document.getElementById('profile-content').innerHTML = 
+  try {
+    const data = await callFunction('get-professional', {
+      method: 'GET',
+      query: { id }
+    });
+    renderProfile(data.professional, data.reviews, data.availability);
+  } catch (err) {
+    document.getElementById('profile-content').innerHTML = 
+  }
 }
+
 
 function renderProfile(d) {
   const initials = d.firstName[0] + d.lastName[0];
@@ -1717,12 +1763,43 @@ function selectBookingSlot(time, btn) {
   selectedBookingSlot = time;
 }
 
-function submitBooking() {
-  const name = document.getElementById('booking-name').value.trim();
-  if (!name) { showToast('Please enter your name', 'error'); return; }
+async function submitBooking() {
+  const name  = document.getElementById('booking-name').value.trim();
+  const email = document.getElementById('booking-email').value.trim();
+  const phone = document.getElementById('booking-phone').value.trim();
+  const date  = document.getElementById('booking-date').value;
+  const reason = document.getElementById('booking-reason').value.trim();
+
+  if (!name)  { showToast('Please enter your name', 'error'); return; }
+  if (!email) { showToast('Please enter your email address', 'error'); return; }
+  if (!date)  { showToast('Please select a date', 'error'); return; }
   if (!selectedBookingSlot) { showToast('Please select a time slot', 'error'); return; }
-  closeModal('booking-modal');
-  showToast('✅ Appointment booked! Confirmation email sent.', 'success');
+
+  const bookingBtn = document.querySelector('#booking-modal .btn-accent');
+  if (bookingBtn) { bookingBtn.disabled = true; bookingBtn.textContent = 'Booking…'; }
+
+  try {
+    await callFunction('book-appointment', {
+      method: 'POST',
+      body: {
+        professional_id: String(currentDoctorId),
+        patient_name:    name,
+        patient_email:   email,
+        patient_phone:   phone || null,
+        appt_date:       date,
+        appt_time:       selectedBookingSlot.includes(' ')
+                           ? selectedBookingSlot.split(' ')[1]
+                           : selectedBookingSlot,
+        reason:          reason || null,
+      }
+    });
+    closeModal('booking-modal');
+    showToast('✅ Appointment booked! A confirmation email has been sent to ' + email, 'success');
+  } catch (err) {
+    showToast(err.message || 'Booking failed — please try again.', 'error');
+  } finally {
+    if (bookingBtn) { bookingBtn.disabled = false; bookingBtn.textContent = 'Confirm Booking'; }
+  }
 }
 
 // ─── REVIEW ───────────────────────────────────────────────────────────────────
@@ -1747,21 +1824,34 @@ function updateStars(val) {
   });
 }
 
-function submitReview() {
-  const text = document.getElementById('review-text').value.trim();
-  const name = document.getElementById('review-name').value.trim() || 'Anonymous';
-  if (!currentRating) { showToast('Please select a rating', 'error'); return; }
-  if (!text) { showToast('Please write a review', 'error'); return; }
-  const d = doctors.find(x => x.id === currentDoctorId);
-  if (d) {
-    d.reviews.unshift({ name, rating: currentRating, text, date: new Date().toISOString().substring(0,7) });
-    d.reviewCount++;
-    d.rating = Math.round(((d.rating * (d.reviewCount-1)) + currentRating) / d.reviewCount * 10) / 10;
-  }
-  closeModal('review-modal');
-  showToast('⭐ Review submitted! Thank you.', 'success');
-  if (document.getElementById('profile-page').classList.contains('active')) {
-    renderProfile(d);
+async function submitReview() {
+  const text  = document.getElementById('review-text').value.trim();
+  const name  = document.getElementById('review-name').value.trim() || 'Anonymous';
+  const month = document.getElementById('review-date').value;
+
+  if (!currentRating) { showToast('Please select a star rating', 'error'); return; }
+  if (!text)          { showToast('Please write your review', 'error'); return; }
+
+  const submitBtn = document.querySelector('#review-modal .btn-primary');
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Submitting…'; }
+
+  try {
+    await callFunction('submit-review', {
+      method: 'POST',
+      body: {
+        professional_id: String(currentDoctorId),
+        reviewer_name:   name,
+        rating:          currentRating,
+        review_text:     text,
+        visit_month:     month || null,
+      }
+    });
+    closeModal('review-modal');
+    showToast('⭐ Thank you! Your review has been submitted and will appear once approved.', 'success');
+  } catch (err) {
+    showToast(err.message || 'Review submission failed — please try again.', 'error');
+  } finally {
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit Review'; }
   }
 }
 
@@ -1807,16 +1897,117 @@ function searchToClaim() {
   `).join('');
 }
 
-function submitClaimRequest(doctorId) {
-  const d = doctors.find(x => x.id === doctorId);
-  claimRequests.push({ id: Date.now(), doctorId, doctorName: `${d.title} ${d.firstName} ${d.lastName}`, requestDate: new Date().toISOString(), status: 'pending', requesterEmail: 'requester@email.com' });
-  showToast('✅ Claim request submitted! Our team will review within 24 hours.', 'success');
-  document.getElementById('claim-results').innerHTML = `
-    <div class="card" style="background:var(--primary-light);border-color:var(--accent)">
-      <strong>🎉 Request submitted!</strong><br>
-      <span style="font-size:14px;color:var(--text-secondary)">We will verify your identity and grant access to the profile within 24 hours. Check your email for updates.</span>
-    </div>`;
-  updateAdminBadges();
+async function submitClaimRequest(doctorId) {
+  // Show the contact fields if not already visible
+  const contactFields = document.getElementById('claim-contact-fields');
+  if (contactFields && contactFields.classList.contains('hidden')) {
+    contactFields.classList.remove('hidden');
+    contactFields.scrollIntoView({ behavior: 'smooth' });
+
+    // Change the claim button to a final submit button
+    const claimBtns = document.querySelectorAll('[onclick^="submitClaimRequest"]');
+    claimBtns.forEach(btn => {
+      btn.textContent = 'Submit Claim Request';
+      btn.onclick = () => finaliseClaimRequest(doctorId);
+    });
+    return;
+  }
+  await finaliseClaimRequest(doctorId);
+}
+
+async function finaliseClaimRequest(doctorId) {
+  const requesterName  = document.getElementById('claim-requester-name')?.value.trim();
+  const requesterEmail = document.getElementById('claim-requester-email')?.value.trim();
+  const evidence       = document.getElementById('claim-evidence')?.value.trim();
+
+  if (!requesterName)  { showToast('Please enter your full name', 'error'); return; }
+  if (!requesterEmail) { showToast('Please enter your email address', 'error'); return; }
+
+  const submitBtns = document.querySelectorAll('[onclick*="finaliseClaimRequest"]');
+  submitBtns.forEach(btn => { btn.disabled = true; btn.textContent = 'Submitting…'; });
+
+  try {
+    await callFunction('submit-claim', {
+      method: 'POST',
+      body: {
+        professional_id:  String(doctorId),
+        requester_name:   requesterName,
+        requester_email:  requesterEmail,
+        evidence_notes:   evidence || null,
+      }
+    });
+    document.getElementById('claim-results').innerHTML = `
+      <div class="card" style="background:var(--accent-light);border:1.5px solid var(--accent);margin-top:16px">
+        <strong style="color:var(--accent)">🎉 Claim request submitted!</strong><br>
+        <span style="font-size:14px;color:var(--text-secondary)">
+          We will verify your identity and get back to you at <strong>${requesterEmail}</strong> within 24 hours.
+        </span>
+      </div>`;
+    const contactFields = document.getElementById('claim-contact-fields');
+    if (contactFields) contactFields.classList.add('hidden');
+    showToast('✅ Claim request submitted successfully!', 'success');
+  } catch (err) {
+    showToast(err.message || 'Submission failed — please try again.', 'error');
+    submitBtns.forEach(btn => { btn.disabled = false; btn.textContent = 'Submit Claim Request'; });
+  }
+}
+
+async function adminLogin() {
+  const email = document.getElementById('admin-email').value.trim();
+  const pw    = document.getElementById('admin-password').value;
+
+  if (!email) { showToast('Please enter your email address', 'error'); return; }
+  if (!pw)    { showToast('Please enter your password', 'error'); return; }
+
+  const loginBtn = document.querySelector('#admin-login .btn-primary');
+  if (loginBtn) { loginBtn.disabled = true; loginBtn.textContent = 'Signing in…'; }
+
+  try {
+    const result = await callFunction('auth-login', {
+      method: 'POST',
+      body: { email, password: pw }
+    });
+
+    // Store the session token for use in subsequent admin API calls
+    window._authToken = result.access_token;
+
+    if (result.role === 'admin') {
+      isAdminLoggedIn = true;
+      isProfLoggedIn  = false;
+      loggedInProfId  = null;
+      document.getElementById('admin-nav-btn').style.display = 'flex';
+      document.getElementById('logout-btn').style.display    = 'flex';
+      showPage('admin');
+      renderAdminSection();
+      showToast('Welcome back!', 'success');
+
+    } else if (result.role === 'professional') {
+      isProfLoggedIn  = true;
+      isAdminLoggedIn = false;
+      loggedInProfId  = result.professional_id;
+      document.getElementById('logout-btn').style.display = 'flex';
+      // Take professional to their own profile page
+      if (result.professional_id) {
+        showDoctorProfile(result.professional_id);
+      } else {
+        showPage('home');
+      }
+      showToast('Welcome back!', 'success');
+
+    } else {
+      showToast('Login succeeded but your account role is not recognised. Please contact support.', 'error');
+    }
+
+  } catch (err) {
+    const msg = err.message || '';
+    if (msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('credentials')) {
+      showToast('Incorrect email or password. Please try again.', 'error');
+    } else {
+      showToast('Login failed — please check your connection and try again.', 'error');
+    }
+  } finally {
+    if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = 'Sign In'; }
+  }
 }
 
 function nextStep(n) {
@@ -1852,84 +2043,98 @@ function showStep(n) {
   }
 }
 
-function submitRegistration() {
+async function submitRegistration() {
   if (!document.getElementById('reg-terms').checked) {
     showToast('Please accept the Terms of Service', 'error'); return;
   }
-  const newDoc = {
-    id: Date.now(), title: document.getElementById('reg-title').value,
-    firstName: document.getElementById('reg-firstname').value,
-    lastName: document.getElementById('reg-lastname').value,
-    email: document.getElementById('reg-email').value,
-    phone: document.getElementById('reg-phone').value,
-    specialty: document.getElementById('reg-specialty').value,
-    subspecialties: document.getElementById('reg-subspecialties').value,
-    qualifications: document.getElementById('reg-qualifications').value,
-    languages: document.getElementById('reg-languages').value,
-    bio: document.getElementById('reg-bio').value,
-    practiceName: document.getElementById('reg-practice-name').value,
-    address: document.getElementById('reg-address1').value,
-    city: document.getElementById('reg-city').value,
-    county: document.getElementById('reg-county').value,
-    postcode: document.getElementById('reg-postcode').value,
-    country: document.getElementById('reg-country').value,
-    website: document.getElementById('reg-website').value,
-    feeMin: parseInt(document.getElementById('reg-fee-min').value)||0,
-    feeMax: parseInt(document.getElementById('reg-fee-max').value)||0,
-    insurance: document.getElementById('reg-insurance').value,
-    consultationTypes: [
-      ...( document.getElementById('ct-in-person').checked ? ['in-person'] : []),
-      ...( document.getElementById('ct-video').checked ? ['video'] : []),
-      ...( document.getElementById('ct-home').checked ? ['home'] : []),
-      ...( document.getElementById('ct-phone').checked ? ['phone'] : []),
-    ],
-    availability: {
-      mon: document.getElementById('day-mon').checked,
-      tue: document.getElementById('day-tue').checked,
-      wed: document.getElementById('day-wed').checked,
-      thu: document.getElementById('day-thu').checked,
-      fri: document.getElementById('day-fri').checked,
-      sat: document.getElementById('day-sat').checked,
-      sun: document.getElementById('day-sun').checked,
-    },
-    startTime: document.getElementById('reg-start-time').value,
-    endTime: document.getElementById('reg-end-time').value,
-    apptDuration: parseInt(document.getElementById('reg-appt-duration').value),
-    rating: 0, reviewCount: 0, reviews: [],
-    status: 'pending', claimed: false,
-    lat: 53.3498 + (Math.random()-0.5)*0.2,
-    lng: -6.2603 + (Math.random()-0.5)*0.3,
-    regNumber: document.getElementById('reg-regnum').value,
-    experience: document.getElementById('reg-experience').value,
-  };
-  pendingRegistrations.push(newDoc);
-  updateAdminBadges();
-  showToast('🎉 Registration submitted! We\'ll review and approve within 24 hours.', 'success');
-  setTimeout(() => showPage('home'), 1500);
-}
-
-// ─── ADMIN LOGIN ──────────────────────────────────────────────────────────────
-function adminLogin() {
-  const email = document.getElementById('admin-email').value;
-  const pw = document.getElementById('admin-password').value;
-  if (email === 'admin@myhealthaxis.ie' && pw === 'admin123') {
-    isAdminLoggedIn = true;
-    document.getElementById('admin-nav-btn').style.display = 'flex';
-    document.getElementById('logout-btn').style.display = 'flex';
-    showPage('admin');
-    renderAdminSection();
-  } else {
-    showToast('Invalid credentials', 'error');
+  try {
+    await callFunction('register-professional', {
+      method: 'POST',
+      body: {
+        first_name: document.getElementById('reg-firstname').value,
+        last_name:  document.getElementById('reg-lastname').value,
+        email:      document.getElementById('reg-email').value,
+        specialty:  document.getElementById('reg-specialty').value,
+        // ... include all other form fields in the same pattern
+      }
+    });
+    showToast('Registration submitted! We will review within 24 hours.', 'success');
+    showPage('home');
+  } catch (err) {
+    showToast(err.message || 'Registration failed. Please try again.', 'error');
   }
 }
 
+
+// ─── ADMIN LOGIN ──────────────────────────────────────────────────────────────
+async function adminLogin() {
+  const email = document.getElementById('admin-email').value.trim();
+  const pw    = document.getElementById('admin-password').value;
+
+  if (!email) { showToast('Please enter your email address', 'error'); return; }
+  if (!pw)    { showToast('Please enter your password', 'error'); return; }
+
+  const loginBtn = document.querySelector('#admin-login .btn-primary');
+  if (loginBtn) { loginBtn.disabled = true; loginBtn.textContent = 'Signing in…'; }
+
+  try {
+    const result = await callFunction('auth-login', {
+      method: 'POST',
+      body: { email, password: pw }
+    });
+
+    // Store the session token for use in subsequent admin API calls
+    window._authToken = result.access_token;
+
+    if (result.role === 'admin') {
+      isAdminLoggedIn = true;
+      isProfLoggedIn  = false;
+      loggedInProfId  = null;
+      document.getElementById('admin-nav-btn').style.display = 'flex';
+      document.getElementById('logout-btn').style.display    = 'flex';
+      showPage('admin');
+      renderAdminSection();
+      showToast('Welcome back!', 'success');
+
+    } else if (result.role === 'professional') {
+      isProfLoggedIn  = true;
+      isAdminLoggedIn = false;
+      loggedInProfId  = result.professional_id;
+      document.getElementById('logout-btn').style.display = 'flex';
+      // Take professional to their own profile page
+      if (result.professional_id) {
+        showDoctorProfile(result.professional_id);
+      } else {
+        showPage('home');
+      }
+      showToast('Welcome back!', 'success');
+
+    } else {
+      showToast('Login succeeded but your account role is not recognised. Please contact support.', 'error');
+    }
+
+  } catch (err) {
+    const msg = err.message || '';
+    if (msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('credentials')) {
+      showToast('Incorrect email or password. Please try again.', 'error');
+    } else {
+      showToast('Login failed — please check your connection and try again.', 'error');
+    }
+  } finally {
+    if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = 'Sign In'; }
+  }
+}
+
+
 function logout() {
-  isAdminLoggedIn = false;
-  isProfLoggedIn = false;
+  isAdminLoggedIn  = false;
+  isProfLoggedIn   = false;
+  loggedInProfId   = null;
+  window._authToken = null;
   document.getElementById('admin-nav-btn').style.display = 'none';
-  document.getElementById('logout-btn').style.display = 'none';
+  document.getElementById('logout-btn').style.display    = 'none';
   showPage('home');
-  showToast('Logged out successfully');
+  showToast('You have been signed out.');
 }
 
 // ─── ADMIN PANEL ──────────────────────────────────────────────────────────────
